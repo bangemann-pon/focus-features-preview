@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JAM² Features - GSAP FLIP</title>
+    
+    <!-- Tailwind CSS for rapid styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- GSAP Core, FLIP Plugin, and ScrollTrigger Plugin -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/Flip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+
+    <!-- Phosphor Icons for the close button -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <style>
+        /* Base typography and body setup */
+        body {
+            background-color: #09090b; /* zinc-950 */
+            color: #f4f4f5; /* zinc-50 */
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
+        }
+
+        /* * Card Wrapper holds the physical space in the CSS grid 
+         * so the layout doesn't collapse when the card becomes position: fixed.
+         */
+        .card-wrapper {
+            position: relative;
+            height: 480px;
+            width: 100%;
+            z-index: 1;
+        }
+
+        /* Initial Card State (Grid Item) */
+        .feature-card {
+            position: absolute;
+            inset: 0;
+            border-radius: 32px;
+            background-color: #18181b; /* zinc-900 */
+            overflow: hidden;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+            /* will-change optimizes the animation performance */
+            will-change: transform, width, height, border-radius;
+            transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.4s ease;
+        }
+
+        /* Hover effect only active when NOT expanded */
+        .feature-card.hover-enabled:hover {
+            transform: scale(0.97);
+            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.7);
+        }
+
+        /* Expanded Card State (Full Screen App Store Style) */
+        .feature-card.is-expanded {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100dvh; /* dvh accounts for mobile browser address bars */
+            border-radius: 0;
+            z-index: 100;
+            cursor: auto;
+            background-color: #ffffff;
+            color: #09090b;
+            overflow-y: auto;
+            overflow-x: hidden;
+            box-shadow: none;
+        }
+
+        /* Desktop adaptations for expanded state (~80% width with margin auto for centering) */
+        @media (min-width: 768px) {
+            .feature-card.is-expanded {
+                top: 10vh;
+                left: 0;
+                right: 0;
+                margin: 0 auto;
+                width: 80vw;
+                max-width: 1100px;
+                height: 80vh;
+                border-radius: 32px;
+                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            }
+        }
+
+        /* Hero Image Container */
+        .card-hero {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        /* In expanded mode, the hero becomes a header banner */
+        .feature-card.is-expanded .card-hero {
+            height: 55vh;
+        }
+
+        /* Gradient at the top to ensure the white close button is always visible */
+        .card-hero::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 150px;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6) 0%, transparent 100%);
+            z-index: 10;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.8s ease;
+        }
+
+        .feature-card.is-expanded .card-hero::after {
+            opacity: 1;
+        }
+
+        .card-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.6s ease;
+        }
+
+        .feature-card.hover-enabled:hover .card-img {
+            transform: scale(1.05);
+        }
+
+        /* Title overlay pinned to the bottom of the hero section */
+        .card-title-wrap {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 2.5rem;
+            background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.5) 50%, transparent 100%);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+
+        /* Expanded specific styling for title */
+        .feature-card.is-expanded .card-title-wrap {
+            padding: 3rem 2.5rem;
+            background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
+        }
+
+        /* Hidden content that reveals in the expanded state */
+        .card-content {
+            padding: 3rem 2.5rem;
+            display: none;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .feature-card.is-expanded .card-content {
+            display: block;
+        }
+
+        /* Floating Close Button */
+        .close-btn {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            width: 44px;
+            height: 44px;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            border: 1px solid rgba(255,255,255,0.1);
+            cursor: pointer;
+            z-index: 50;
+            transition: background 0.2s ease;
+        }
+        
+        .close-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .feature-card.is-expanded .close-btn {
+            display: flex;
+        }
+        
+        /* Typography overrides for expanded content */
+        .card-content p {
+            margin-bottom: 1.5rem;
+            font-size: 1.125rem;
+            line-height: 1.75;
+            color: #3f3f46;
+        }
+        
+        .card-content h3 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            color: #09090b;
+        }
+        
+        /* Custom scrollbar for expanded card */
+        .feature-card.is-expanded::-webkit-scrollbar {
+            width: 8px;
+        }
+        .feature-card.is-expanded::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        .feature-card.is-expanded::-webkit-scrollbar-thumb {
+            background: #c1c1c1; 
+            border-radius: 10px;
+        }
+        .feature-card.is-expanded::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8; 
+        }
+
+        /* Hide default scrollbar for horizontal lists */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-amber-500 selection:text-black">
+
+    <!-- Blur Backdrop for Desktop -->
+    <div id="blur-backdrop" class="fixed inset-0 bg-zinc-950/60 backdrop-blur-md z-40 hidden opacity-0 pointer-events-none"></div>
+
+    <!-- Intro Text Section -->
+    <section class="max-w-7xl mx-auto px-6 py-24 lg:py-32">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <div>
+                <h2 class="text-4xl md:text-5xl font-bold mb-6 tracking-tight">CONQUER NEW MOUNTAINS.</h2>
+                <p class="text-lg text-zinc-400 mb-6 leading-relaxed">
+                    The JAM² is your purebred e-MTB. With 150 mm of travel and the dynamic Bosch Performance Line CX e-drive, you can ride more trails than ever before. The perfectly integrated 750 Wh battery ensures that you never run out of juice.
+                </p>
+                <p class="text-lg text-zinc-400 leading-relaxed">
+                    Thanks to its agile handling and playful character, you will experience maximum fun on every ride. Conquer new mountains and rip your favorite trails.
+                </p>
+            </div>
+            <div class="relative">
+                <img src="https://picsum.photos/seed/jam2-hero/1000/700" alt="JAM2 Action" class="rounded-3xl shadow-2xl w-full object-cover aspect-video lg:aspect-auto h-full max-h-[450px]">
+                <div class="absolute inset-0 rounded-3xl ring-1 ring-white/10 pointer-events-none"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pinned Horizontal Scroll Section -->
+    <!-- On desktop this pins and scrolls horizontally. On mobile, it's just a normal flex layout -->
+    <section id="features-pin-section" class="relative w-full overflow-hidden bg-zinc-950 lg:h-screen lg:flex lg:items-center">
+        
+        <!-- The wrapper that will actually translate to the left via GSAP -->
+        <div id="features-translate-wrapper" class="flex flex-col lg:flex-row items-start lg:items-center w-full lg:w-max lg:flex-nowrap">
+            
+            <!-- Headline block (moves along with the cards on desktop) -->
+            <div class="w-full lg:w-[45vw] shrink-0 px-6 py-12 lg:py-0 text-center lg:text-left flex flex-col justify-center items-center lg:items-start lg:pl-16 xl:pl-24">
+                <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-zinc-800/50 border border-zinc-700/50 text-amber-500 text-sm font-bold tracking-widest uppercase mb-6">
+                    <i class="ph-fill ph-lightning"></i> Explore the details
+                </div>
+                <h1 class="text-5xl md:text-7xl font-extrabold tracking-tighter mb-6 uppercase">
+                    JAM<span class="text-amber-500">²</span> Features
+                </h1>
+                <p class="text-lg md:text-xl text-zinc-400 font-medium max-w-2xl lg:max-w-md mx-auto lg:mx-0">
+                    More mountains, more smiles. Keep scrolling to dive deep into the technology powering our most dynamic e-MTB yet.
+                </p>
+            </div>
+
+            <!-- Cards Container -->
+            <!-- Mobile: Native snap scrolling. Desktop: overflow hidden, GSAP moves the parent -->
+            <div class="flex overflow-x-auto lg:overflow-visible gap-6 lg:gap-10 pb-6 lg:pb-0 px-6 lg:px-12 snap-x snap-mandatory hide-scrollbar w-full lg:w-auto">
+                
+                <!-- Card 1: Motor -->
+                <div class="card-wrapper shrink-0 w-[85vw] md:w-[450px] snap-center">
+                    <div class="feature-card hover-enabled">
+                        <div class="card-hero">
+                            <button class="close-btn" aria-label="Close">
+                                <i class="ph ph-x text-xl"></i>
+                            </button>
+                            <img src="https://picsum.photos/seed/bike-motor/1200/800" alt="E-Bike Motor" class="card-img">
+                            
+                            <div class="card-title-wrap">
+                                <span class="text-amber-500 font-bold uppercase tracking-wider text-sm mb-2">E-Drive System</span>
+                                <h2 class="text-3xl md:text-4xl font-extrabold tracking-tight">Bosch Performance Line CX</h2>
+                            </div>
+                        </div>
+                        
+                        <div class="card-content">
+                            <p class="font-semibold text-xl !text-zinc-800">85 Nm of pure, dynamic power tailored for the steepest climbs and toughest trails.</p>
+                            <p>The e-drive is perfectly integrated into the bottom bracket area. This lowers the center of gravity and heavily improves your ride stability. Thanks to the 85 Nm torque of the Bosch Performance Line CX, you can conquer any uphill obstacle.</p>
+                            <h3>Customizable via eBike Flow App</h3>
+                            <p>Using the smart system, you can customize your riding modes perfectly to your needs via the eBike Flow app. Tune the support, dynamics, maximum speed, and maximum torque of the eMTB and Tour+ modes to your individual riding style.</p>
+                            <img src="https://picsum.photos/seed/bike-display/800/600" class="w-full h-64 object-cover rounded-2xl mt-8 mb-4 shadow-md" alt="Detail shot">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2: Battery -->
+                <div class="card-wrapper shrink-0 w-[85vw] md:w-[450px] snap-center">
+                    <div class="feature-card hover-enabled">
+                        <div class="card-hero">
+                            <button class="close-btn" aria-label="Close">
+                                <i class="ph ph-x text-xl"></i>
+                            </button>
+                            <img src="https://picsum.photos/seed/bike-battery/1200/800" alt="Mountain rider" class="card-img">
+                            
+                            <div class="card-title-wrap">
+                                <span class="text-amber-500 font-bold uppercase tracking-wider text-sm mb-2">Energy & Range</span>
+                                <h2 class="text-3xl md:text-4xl font-extrabold tracking-tight">750 Wh Integrated Battery</h2>
+                            </div>
+                        </div>
+                        
+                        <div class="card-content">
+                            <p class="font-semibold text-xl !text-zinc-800">Endless laps on your favorite trails with unmatched battery capacity.</p>
+                            <p>The battery is elegantly integrated into the down tube, yet it can be removed easily for charging if you don't want to bring your bike into the living room. The massive 750 Wh capacity means range anxiety is a thing of the past.</p>
+                            <h3>Smart Placement</h3>
+                            <p>To ensure the handling remains playful despite the larger battery, we placed it as low as possible. The weight distribution is finely balanced, giving you confidence on high-speed descents while keeping the front wheel planted on steep technical climbs.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 3: Suspension -->
+                <div class="card-wrapper shrink-0 w-[85vw] md:w-[450px] snap-center">
+                    <div class="feature-card hover-enabled">
+                        <div class="card-hero">
+                            <button class="close-btn" aria-label="Close">
+                                <i class="ph ph-x text-xl"></i>
+                            </button>
+                            <img src="https://picsum.photos/seed/bike-suspension/1200/800" alt="Trail riding" class="card-img">
+                            
+                            <div class="card-title-wrap">
+                                <span class="text-amber-500 font-bold uppercase tracking-wider text-sm mb-2">Kinematics</span>
+                                <h2 class="text-3xl md:text-4xl font-extrabold tracking-tight">Upgraded F.O.L.D. Kinematics</h2>
+                            </div>
+                        </div>
+                        
+                        <div class="card-content">
+                            <p class="font-semibold text-xl !text-zinc-800">150mm of plush, progressive travel designed for heavy hits and active riding.</p>
+                            <p>We've optimized our F.O.L.D. (FOCUS Optimized Linkage Design) kinematics for more progression. This means you can ride harder and faster without worrying about bottoming out, while still enjoying extreme sensitivity over small bumps.</p>
+                            <h3>Better Coil Compatibility</h3>
+                            <p>Because the kinematics are now much more progressive, you can easily install a coil shock if you prefer maximum traction over the air shock's adjustability. The lower standover height gives you more room to move on technical terrain.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 4: Geometry -->
+                <div class="card-wrapper shrink-0 w-[85vw] md:w-[450px] snap-center">
+                    <div class="feature-card hover-enabled">
+                        <div class="card-hero">
+                            <button class="close-btn" aria-label="Close">
+                                <i class="ph ph-x text-xl"></i>
+                            </button>
+                            <img src="https://picsum.photos/seed/bike-geo/1200/800" alt="Bicycle details" class="card-img">
+                            
+                            <div class="card-title-wrap">
+                                <span class="text-amber-500 font-bold uppercase tracking-wider text-sm mb-2">Adaptability</span>
+                                <h2 class="text-3xl md:text-4xl font-extrabold tracking-tight">Adjustable Geometry Flip Chip</h2>
+                            </div>
+                        </div>
+                        
+                        <div class="card-content">
+                            <p class="font-semibold text-xl !text-zinc-800">Tailor your JAM² to perfectly match your riding style and local trails.</p>
+                            <p>By simply turning the headset cups, you can easily change the head angle of your JAM² from a slack 65.5° for agile handling to an aggressive 64.5° for pure downhill focus.</p>
+                            <h3>Mullet Ready</h3>
+                            <p>Want to run a 27.5" rear wheel? No problem. The secondary FLIP CHIP at the rear linkage allows you to adjust the chainstay length, keeping the bottom bracket height perfect whether you're running a full 29er setup or a mixed wheel mullet configuration for maximum agility.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Mobile Swipe Indicator (Only visible on small screens below the slider) -->
+            <div class="flex lg:hidden items-center justify-center gap-4 w-full pb-8 text-zinc-500 opacity-80 pointer-events-none">
+                <i class="ph-bold ph-caret-left animate-pulse"></i>
+                <div class="flex items-center gap-2">
+                    <i class="ph ph-hand-swipe-left text-xl"></i>
+                    <span class="text-xs font-bold uppercase tracking-widest">Swipe to explore</span>
+                </div>
+                <i class="ph-bold ph-caret-right animate-pulse"></i>
+            </div>
+
+            <!-- Spacing block at the end so the final card doesn't rub against the edge of the screen on desktop -->
+            <div class="hidden lg:block shrink-0 w-[10vw]"></div>
+
+        </div>
+    </section>
+
+    <!-- Specs / Footer Section -->
+    <section class="max-w-7xl mx-auto px-6 py-24 lg:py-32">
+        <h2 class="text-3xl md:text-4xl font-bold mb-10 tracking-tight">THE PERFECT MIX.</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div class="bg-zinc-900/50 border border-zinc-800 p-8 rounded-3xl">
+                <i class="ph ph-mountains text-4xl text-amber-500 mb-4 block"></i>
+                <h4 class="text-xl font-bold mb-2">Agile Geometry</h4>
+                <p class="text-zinc-400">Short chainstays and a slack head angle create the perfect balance between stability and playfulness.</p>
+            </div>
+            <div class="bg-zinc-900/50 border border-zinc-800 p-8 rounded-3xl">
+                <i class="ph ph-engine text-4xl text-amber-500 mb-4 block"></i>
+                <h4 class="text-xl font-bold mb-2">Integrated Design</h4>
+                <p class="text-zinc-400">The C.I.S. (Cockpit Integration Solution) routes all cables directly from the handlebar into the stem.</p>
+            </div>
+            <div class="bg-zinc-900/50 border border-zinc-800 p-8 rounded-3xl">
+                <i class="ph ph-shield-check text-4xl text-amber-500 mb-4 block"></i>
+                <h4 class="text-xl font-bold mb-2">Uncompromising Build</h4>
+                <p class="text-zinc-400">Equipped with reliable components specifically chosen to withstand the rigors of heavy e-MTB trail use.</p>
+            </div>
+        </div>
+    </section>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // Register Plugins
+            gsap.registerPlugin(Flip, ScrollTrigger);
+
+            // --- SCROLLTRIGGER: HORIZONTAL SCROLL LOGIC ---
+            // Only apply ScrollTrigger pinning for desktop (>= 1024px)
+            let mm = gsap.matchMedia();
+
+            mm.add("(min-width: 1024px)", () => {
+                const pinSection = document.querySelector("#features-pin-section");
+                const translateWrapper = document.querySelector("#features-translate-wrapper");
+                
+                // Calculate how far the wrapper needs to translate to the left
+                // (Total width of the content minus the width of the viewport)
+                let getScrollAmount = () => translateWrapper.scrollWidth - window.innerWidth;
+
+                // Create the horizontal sliding animation
+                const slideAnim = gsap.to(translateWrapper, {
+                    x: () => -getScrollAmount(),
+                    ease: "none"
+                });
+
+                // Pin the section and link the sliding animation to the scrollbar
+                ScrollTrigger.create({
+                    trigger: pinSection,
+                    start: "top top",
+                    end: () => `+=${getScrollAmount()}`, // The scroll distance equals the horizontal width
+                    pin: true,
+                    animation: slideAnim,
+                    scrub: 1, // '1' adds a smooth 1-second lag to the catching up
+                    invalidateOnRefresh: true // Recalculates sizes when resizing the window
+                });
+            });
+
+
+            // --- GSAP FLIP: EXPANDING CARDS LOGIC ---
+            const cards = gsap.utils.toArray(".feature-card");
+            let activeCard = null;
+
+            cards.forEach((card) => {
+                const closeBtn = card.querySelector(".close-btn");
+                const hero = card.querySelector(".card-hero");
+                const content = card.querySelector(".card-content");
+                const titleWrap = card.querySelector(".card-title-wrap");
+                const originalParent = card.parentElement; // Store the original wrapper
+
+                // --- OPEN CARD INTERACTION ---
+                card.addEventListener("click", (e) => {
+                    // Prevent action if another card is already open or if clicking the close button
+                    if (activeCard || e.target.closest(".close-btn")) return;
+                    
+                    activeCard = card;
+
+                    const backdrop = document.getElementById("blur-backdrop");
+
+                    // Lock the main body scroll to prevent underlying page from scrolling
+                    // This importantly prevents ScrollTrigger from accidentally progressing while a card is open!
+                    document.body.style.overflow = "hidden";
+
+                    // 1. Capture the initial state of the elements we want to animate
+                    const state = Flip.getState([card, hero, titleWrap], { props: "borderRadius, backgroundColor" });
+
+                    // 2. Reparent to body to escape ScrollTrigger's transform context, then toggle classes
+                    document.body.appendChild(card);
+                    card.classList.add("is-expanded");
+                    card.classList.remove("hover-enabled");
+
+                    // 3. Prepare the hidden content elements to fade in (set initial positions)
+                    gsap.set(content, { display: "block", opacity: 0, y: 50 });
+                    gsap.set(closeBtn, { display: "flex", opacity: 0, scale: 0.5 });
+
+                    // Fade in the backdrop
+                    backdrop.classList.remove("hidden");
+                    gsap.to(backdrop, { opacity: 1, duration: 0.5, ease: "power2.out" });
+
+                    // 4. Run the FLIP animation
+                    Flip.from(state, {
+                        duration: 0.8,
+                        ease: "expo.inOut",
+                        absolute: true, // Prevents layout shifts while animating fixed positions
+                        nested: true,   // Needed since we are tracking child elements (hero/title)
+                        onComplete: () => {
+                            // After card expansion completes, fade in the text content and close button
+                            gsap.to([closeBtn, content], {
+                                opacity: 1,
+                                y: 0,
+                                scale: 1,
+                                duration: 0.5,
+                                stagger: 0.1,
+                                ease: "power3.out"
+                            });
+                        }
+                    });
+                });
+
+                // --- CLOSE CARD INTERACTION ---
+                closeBtn.addEventListener("click", (e) => {
+                    e.stopPropagation(); // Prevents the card click listener from firing immediately
+                    if (!activeCard) return;
+
+                    const backdrop = document.getElementById("blur-backdrop");
+
+                    // 1. First fade out the text content and close button
+                    gsap.to([content, closeBtn], {
+                        opacity: 0,
+                        y: 30,
+                        duration: 0.3,
+                        ease: "power2.in",
+                        onComplete: () => {
+                            // Hide them entirely before reversing the FLIP
+                            gsap.set(content, { display: "none" });
+                            gsap.set(closeBtn, { display: "none" });
+
+                            // 2. Capture state of the expanded card
+                            const state = Flip.getState([card, hero, titleWrap], { props: "borderRadius, backgroundColor" });
+
+                            // 3. Reparent back to original wrapper and revert classes
+                            originalParent.appendChild(card);
+                            card.classList.remove("is-expanded");
+                            card.classList.add("hover-enabled");
+
+                            // Fade out the backdrop
+                            gsap.to(backdrop, { 
+                                opacity: 0, 
+                                duration: 0.5, 
+                                ease: "power2.inOut",
+                                onComplete: () => backdrop.classList.add("hidden")
+                            });
+
+                            // 4. Reverse the FLIP animation back to the grid
+                            Flip.from(state, {
+                                duration: 0.8,
+                                ease: "expo.inOut",
+                                absolute: true,
+                                nested: true,
+                                onComplete: () => {
+                                    activeCard = null;
+                                    card.scrollTop = 0; // Reset scroll position on the card
+                                    document.body.style.overflow = ""; // Unlock main page scroll
+                                }
+                            });
+                        }
+                    });
+                });
+            });
+
+            // Add Escape key listener for an easy alternative way to close
+            document.addEventListener("keydown", (e) => {
+                if (e.key === "Escape" && activeCard) {
+                    activeCard.querySelector(".close-btn").click();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
