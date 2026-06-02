@@ -693,6 +693,12 @@
                             const state = Flip.getState([card, hero, img, titleWrap], { props: "backgroundColor" });
 
                             originalParent.appendChild(card);
+                            
+                            // TEMPORARY Z-INDEX FIX:
+                            // Elevate the original wrapper's z-index during the close animation 
+                            // so it isn't clipped by subsequent sibling cards in the DOM.
+                            originalParent.style.zIndex = "50"; 
+                            
                             card.classList.remove("is-expanded");
                             card.classList.add("hover-enabled");
 
@@ -713,6 +719,7 @@
                                     card.scrollTop = 0; 
                                     document.body.style.overflow = ""; 
                                     document.body.style.paddingRight = "0px"; // Reset scrollbar padding
+                                    originalParent.style.zIndex = "1"; // Reset wrapper z-index
                                 }
                             });
                         }
